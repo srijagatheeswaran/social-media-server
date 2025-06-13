@@ -1,10 +1,11 @@
 const mongoose = require('mongoose');
 
 const postSchema = new mongoose.Schema({
-    email: { type: String, required: true }, 
-    post: { type: String, required: true },   
-    followers: [{ type: String }],           
-    following: [{ type: String }]             
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, 
+    media: { type: String, required: true },  
+    title: { type: String, required: true },
+}, {
+    timestamps: true 
 });
 
-module.exports = mongoose.model('post', postSchema);
+module.exports = mongoose.model('Post', postSchema);

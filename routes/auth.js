@@ -77,11 +77,11 @@ router.post('/login', async (req, res) => {
             return res.status(403).json({ message: "Please verify your email first. OTP sent!", email });
         }
 
-        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1d' });
+        const token = jwt.sign({ id: user._id }, JWT_SECRET);
 
         await Token.findOneAndUpdate(
             { userId: user._id },
-            // { token, expiresAt: Date.now() + 24 * 60 * 60 * 1000 },
+            { token },
             { upsert: true }
         );
 
@@ -125,7 +125,7 @@ router.post("/verify-otp", async (req, res) => {
 
         await Token.findOneAndUpdate(
             { userId: user._id },
-            { token, expiresAt: Date.now() + 24 * 60 * 60 * 1000 },
+            { token },
             { upsert: true }
         );
 
@@ -138,10 +138,43 @@ router.post("/verify-otp", async (req, res) => {
     }
 });
 
+router.post("/verify", async (req, res) => {
+    const clientToken = req.headers.authorization?.split(" ")[1];
+    const { email } = req.body;
+
+    if (!email || !clientToken) {
+        return res.status(400).json({ valid: false, message: "Email or token missing" });
+    }
+
+    try {
+        // 1. Find user by email
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ valid: false, message: "User not found" });
+        }
+
+        // 2. Fetch token by user ID
+        const tokenDoc = await Token.findOne({ userId: user._id });
+        if (!tokenDoc) {
+            return res.status(404).json({ valid: false, message: "Token not found" });
+        }
+
+        // 3. Compare stored token with request token
+        if (tokenDoc.token !== clientToken) {
+            return res.status(401).json({ valid: false, message: "Token mismatch" });
+        }
+
+        return res.status(200).json({ valid: true });
+    } catch (error) {
+        console.error("Token verify error:", error);
+        return res.status(500).json({ valid: false, message: "Server error" });
+    }
+});
+
 // Logout Route
 router.post('/logout', authMiddleware, async (req, res) => {
     try {
-        await Token.deleteOne({ token: req.headers.token });
+        await Token.deleteOne({ token: req.headers.token }); 
         res.status(200).json({ message: 'Logged out successfully!' });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
