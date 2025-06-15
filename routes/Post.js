@@ -2,6 +2,7 @@ const express = require('express');
 const authenticateToken = require('../middleware/authMiddleware');
 const router = express.Router();
 const Post = require('../models/Post');
+const User = require("../models/User");
 
 
 router.post("/store", authenticateToken, async (req, res) => {
@@ -72,6 +73,46 @@ router.delete("/delete", authenticateToken, async (req, res) => {
     }
 
 });
+
+router.get("/", async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const viewerEmail = req.headers.email;
+
+    try {
+        let viewerUserId = null;
+
+        if (viewerEmail) {
+            const viewer = await User.findOne({ email: viewerEmail }).select("_id");
+            if (viewer) {
+                viewerUserId = viewer._id;
+            }
+        }
+
+        const filter = viewerUserId
+            ? { userId: { $ne: viewerUserId } } // Exclude user's own posts
+            : {}; // If no viewer, show all posts
+
+        const totalPosts = await Post.countDocuments(filter);
+        const posts = await Post.find(filter)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .populate("userId", "username email profileImage")
+            .lean();
+
+        res.status(200).json({
+            currentPage: page,
+            totalPages: Math.ceil(totalPosts / limit),
+            totalPosts,
+            posts,
+        });
+    } catch (error) {
+        console.error("Fetch posts error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 
 
 
