@@ -1,11 +1,144 @@
 const express = require('express');
 const authenticateToken = require('../middleware/authMiddleware');
 const User = require('../models/User');
-Post = require('../models/Post');
+const Post = require('../models/Post');
 const Follow = require('../models/Follower');
+const multer = require('multer');
+// const upload = multer({ dest: 'uploads/' });
+const upload = multer({ storage: multer.memoryStorage() });
+
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
+
+// Cloudinary config
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 
 const router = express.Router();
+
+// router.post('/uploadImage', upload.single('image'), async (req, res) => {
+//     const { email } = req.body;
+//     const file = req.file;
+
+//     if (!file) {
+//         return res.status(400).json({ message: "No image file uploaded" });
+//     }
+
+//     try {
+//         const user = await User.findOne({ email });
+
+//         if (!user) {
+//             return res.status(404).json({ message: "User not found" });
+//         }
+
+//         // Wrap cloudinary upload in a Promise to use await
+//         const result = await new Promise((resolve, reject) => {
+//             const uploadStream = cloudinary.uploader.upload_stream(
+//                 {
+//                     folder: "user_profiles",
+//                     public_id: `${email}_profile`,
+//                     overwrite: true,
+//                 },
+//                 (error, result) => {
+//                     if (error) reject(error);
+//                     else resolve(result);
+//                 }
+//             );
+
+//             streamifier.createReadStream(file.buffer).pipe(uploadStream);
+//         });
+
+//         // Save URL to user's profileImage
+//         user.profileImage = result.secure_url;
+//         await user.save();
+
+//         res.status(200).json({
+//             message: "Image uploaded",
+//             imageUrl: result.secure_url,
+//         });
+
+//     } catch (err) {
+//         console.error("Upload error:", err);
+//         res.status(500).json({ message: "Server error" });
+//     }
+// });
+// router.post('/uploadImage', upload.single('image'), (req, res) => {
+//     const { email } = req.body;
+//     const file = req.file;
+
+//     if (!file) return res.status(400).json({ message: "Image not uploaded." });
+
+//     const imageUrl = `/uploads/${file.filename}`;
+//     return res.status(200).json({ message: "Image uploaded", imageUrl });
+// });
+
+
+router.post('/uploadImage', upload.single('image'), async (req, res) => {
+    const { email } = req.body;
+    const file = req.file;
+
+    if (!file) {
+        return res.status(400).json({ message: "No image file uploaded" });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Delete old image from Cloudinary if exists
+        if (user.profileImage) {
+            const oldPublicId = getPublicIdFromUrl(user.profileImage);
+            if (oldPublicId) {
+                await cloudinary.uploader.destroy(oldPublicId);
+            }
+        }
+
+        // Upload new image
+        const result = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: "user_profiles",
+                    public_id: `${email}_profile`, // optional: generate unique id if needed
+                    overwrite: true,
+                },
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+            );
+
+            streamifier.createReadStream(file.buffer).pipe(uploadStream);
+        });
+
+        // Update user with new image URL
+        user.profileImage = result.secure_url;
+        await user.save();
+
+        res.status(200).json({
+            message: "Image uploaded",
+            imageUrl: result.secure_url,
+        });
+
+    } catch (err) {
+        console.error("Upload error:", err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+function getPublicIdFromUrl(url) {
+    if (!url) return null;
+    const parts = url.split('/');
+    const fileWithExtension = parts[parts.length - 1];
+    const publicId = fileWithExtension.split('.')[0];
+    const folder = parts[parts.length - 2];
+    return `${folder}/${publicId}`;
+}
 
 router.get('/show', authenticateToken, async (req, res) => {
     try {
@@ -40,22 +173,33 @@ router.get('/show', authenticateToken, async (req, res) => {
     }
 });
 
-router.post('/uploadImage', authenticateToken, async (req, res) => {
-    try {
-        const { email, image } = req.body;
 
-        if (!email || !image) {
-            return res.status(400).json({ message: 'Email and image are required' });
-        }
+// router.post('/uploadImage', upload.single('image'), (req, res) => {
+//     try {
+//         const email = req.headers.email;
+//         const file = req.image;
+//         console.log("File from request:", req);
 
-        await User.updateOne({ email }, { $set: { profileImage: image } });
 
-        res.status(200).json({ message: 'Image uploaded successfully' });
-    } catch (error) {
-        console.error('Error updating image:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
-});
+//         if (!file || !email) {
+//             return res.status(400).json({ message: "Image and email are required." });
+//         }
+
+//         const imageUrl = `/uploads/${file.filename}`; // public path to serve
+
+//         // Save imageUrl to DB for this email if needed...
+
+//         return res.status(200).json({
+//             message: 'Image uploaded successfully',
+//             imageUrl
+//         });
+
+//     } catch (error) {
+//         console.error("Upload error:", error);
+//         return res.status(500).json({ message: "Server error" });
+//     }
+// });
+
 router.post('/updateUser', authenticateToken, async (req, res) => {
     try {
         const { email, name, gender, bio } = req.body;
@@ -102,13 +246,13 @@ router.post('/updateUser', authenticateToken, async (req, res) => {
     }
 });
 
-router.get("/search",authenticateToken, async (req, res) => {
+router.get("/search", authenticateToken, async (req, res) => {
     const { query } = req.query;
     const authUserId = req.user.id;
     if (!query) return res.status(400).json({ message: "Query is required" });
 
     try {
-       const users = await User.find({
+        const users = await User.find({
             username: { $regex: query, $options: "i" },
             _id: { $ne: authUserId }
         });

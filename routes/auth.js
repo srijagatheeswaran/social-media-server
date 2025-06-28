@@ -16,7 +16,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // Register User & Send OTP
 router.post("/register", async (req, res) => {
     const { username, email, password } = req.body;
-
+    console.log(req.body)
+    console.log(username, email, password);
     try {
         const existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ message: "Email already exists" });
@@ -25,7 +26,7 @@ router.post("/register", async (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-        const saltRounds = 10;  // Recommended salt rounds for security
+        const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
         // Save User with OTP
         const user = new User({ username, email, password: hashedPassword, otp, otpExpires });
@@ -119,7 +120,7 @@ router.post("/verify-otp", async (req, res) => {
         const token = jwt.sign(
             { userId: user._id, email: user.email },
             process.env.JWT_SECRET,
-            { expiresIn: "1d" }
+            { expiresIn: "100d" }
         );
 
 
@@ -174,7 +175,7 @@ router.post("/verify", async (req, res) => {
 // Logout Route
 router.post('/logout', authMiddleware, async (req, res) => {
     try {
-        await Token.deleteOne({ token: req.headers.token }); 
+        await Token.deleteOne({ token: req.headers.token });
         res.status(200).json({ message: 'Logged out successfully!' });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
