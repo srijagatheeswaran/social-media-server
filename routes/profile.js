@@ -290,11 +290,14 @@ router.get("/user-details", async (req, res) => {
 
         const followingCount = await Follow.countDocuments({ followerId: user._id });
 
+        const postsCount = await Post.countDocuments({ userId: user._id });
+
         res.status(200).json({
             user,
             isFollow: !!isFollow,
             followersCount,
             followingCount,
+            postsCount
         });
     } catch (error) {
         console.error("Fetch user details error:", error);
