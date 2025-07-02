@@ -88,7 +88,7 @@ router.post('/login', async (req, res) => {
 
 
 
-        res.status(200).json({ message: 'Login successful!', token, email });
+        res.status(200).json({ message: 'Login successful!', token, email,"id":user._id });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
@@ -131,7 +131,7 @@ router.post("/verify-otp", async (req, res) => {
         );
 
 
-        res.status(200).json({ message: "User verified successfully", token });
+        res.status(200).json({ message: "User verified successfully", token,"id":user._id });
 
     } catch (error) {
         console.error(error);
