@@ -47,7 +47,7 @@ const userSocketMap = {};
 io.on("connection", (socket) => {
     console.log("✅ New socket connected:", socket.id);
 
-    // Register user to socket
+
     socket.on("register_user", (userId) => {
         userSocketMap[userId] = socket.id;
         console.log("🟢 User registered:", userId);

@@ -11,15 +11,15 @@ const userSchema = new mongoose.Schema({
         required: true,
         unique: true,
         trim: true,
-        lowercase: true  
+        lowercase: true
     },
     password: {
         type: String,
         required: true
     },
     profileImage: {
-        type: String, 
-        default: ""  
+        type: String,
+        default: ""
     },
     gender: {
         type: String,
@@ -29,12 +29,24 @@ const userSchema = new mongoose.Schema({
     bio: {
         type: String,
         trim: true,
-        default: "",  
-        maxlength: [200, "Bio cannot exceed 200 characters"] 
+        default: "",
+        maxlength: [200, "Bio cannot exceed 200 characters"]
     },
     isVerified: { type: Boolean, default: false },
-    otp: String, 
+    otp: String,
     otpExpires: Date,
+    followers: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
+    ],
+    following: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
+    ]
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

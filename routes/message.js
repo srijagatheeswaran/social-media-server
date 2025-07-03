@@ -63,26 +63,38 @@ router.get("/:userId", authenticateToken, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
 
     try {
-        const messages = await Message.find({
-            $or: [
-                { sender: currentUserId, receiver: otherUserId },
-                { sender: otherUserId, receiver: currentUserId },
-            ],
-        })
-        .sort({ timestamp: -1 }) // newest first
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .populate("sender", "username profileImage")
-        .populate("receiver", "username profileImage");
-
+        // Find the other user first
         const otherUser = await User.findById(otherUserId).select("username profileImage");
 
         if (!otherUser) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        res.status(200).json({ messages,otherUser });
+        // Find messages
+        const messages = await Message.find({
+            $or: [
+                { sender: currentUserId, receiver: otherUserId },
+                { sender: otherUserId, receiver: currentUserId },
+            ],
+        })
+            .sort({ timestamp: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .populate("sender", "username profileImage")
+            .populate("receiver", "username profileImage");
+
+        if (!messages.length) {
+            return res.status(200).json({
+                message: "No messages found",
+                messages: [],
+                otherUser,
+            });
+        }
+
+        res.status(200).json({ messages, otherUser });
+
     } catch (err) {
+        console.error("Error fetching messages:", err);
         res.status(500).json({ message: "Server error" });
     }
 });
